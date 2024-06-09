@@ -1,0 +1,228 @@
+import pandas as pd
+import numpy as np
+from google.colab import files
+
+uploaded = files.upload()
+filename = next(iter(uploaded))
+
+def create_parent_sku(sku):
+    if pd.isna(sku):
+        return ''
+    sku_str = str(sku)
+    return sku_str.split('-')[0] if '-' in sku_str else sku_str
+
+def determine_product_type(sku):
+    pass
+
+def safe_str_operations(row, column_name):
+    value = row[column_name]
+    return str(value).replace(' ', '-').lower().strip('-') if pd.notna(value) else ''
+
+def get_configurable_variations(parent_sku, original_df):
+    variants_df = original_df[original_df['ProductSKU'].str.startswith(parent_sku + "-")]
+    variation_strings = variants_df.apply(lambda row: f"sku={row['ProductSKU']},size={row['Size']},color={row['RowProperty']}", axis=1)
+    return '|'.join(variation_strings)
+
+def initialize_dataframe(input_file):
+    original_df = pd.read_excel(input_file)
+    original_df['ProductSKU'] = original_df['ProductSKU'].astype(str)
+    original_df['ParentSKU'] = original_df['ProductSKU'].apply(create_parent_sku)
+    all_skus = pd.concat([original_df['ProductSKU'], original_df['ParentSKU']]).drop_duplicates().reset_index(drop=True)
+    return original_df, all_skus
+
+original_df, all_skus = initialize_dataframe(filename)
+
+sku_to_name_dict = dict(zip(original_df['ProductSKU'], original_df['ProductName']))
+sku_to_product_name_dict = sku_to_name_dict
+sku_to_weight_dict = dict(zip(original_df['ProductSKU'], original_df['Weight']))
+sku_to_price_dict = dict(zip(original_df['ProductSKU'], original_df['ListPrice']))
+sku_to_size_dict = dict(zip(original_df['ProductSKU'], original_df['Size']))
+sku_to_quantity_dict = dict(zip(original_df['ProductSKU'], original_df['QuantityAvailable']))
+sku_to_color_dict = dict(zip(original_df['ProductSKU'], original_df['RowProperty']))
+sku_to_default_description_dict = dict(zip(original_df['ProductSKU'], original_df['DefaultDescription']))
+
+columns = [
+        'sku', 'store_view_code', 'attribute_set_code', 'product_type', 'categories',
+        'product_websites', 'name', 'description', 'short_description', 'weight',
+        'product_online', 'tax_class_name', 'visibility', 'price', 'size', 'color'
+        'special_price', 'special_price_from_date', 'special_price_to_date', 'url_key',
+        'meta_title', 'meta_keywords', 'meta_description', 'base_image', 'base_image_label',
+        'small_image', 'small_image_label', 'thumbnail_image', 'thumbnail_image_label',
+        'swatch_image', 'swatch_image_label', 'created_at', 'updated_at', 'new_from_date',
+        'new_to_date', 'display_product_options_in', 'map_price', 'msrp_price', 'map_enabled',
+        'gift_message_available', 'custom_design', 'custom_design_from', 'custom_design_to',
+        'custom_layout_update', 'page_layout', 'product_options_container',
+        'msrp_display_actual_price_type', 'country_of_manufacture', 'additional_attributes',
+        'qty', 'out_of_stock_qty', 'use_config_min_qty', 'is_qty_decimal',
+        'allow_backorders', 'use_config_backorders', 'min_cart_qty', 'use_config_min_sale_qty',
+        'max_cart_qty', 'use_config_max_sale_qty', 'is_in_stock', 'notify_on_stock_below',
+        'use_config_notify_stock_qty', 'manage_stock', 'use_config_qty_increments',
+        'qty_increments', 'use_config_enable_qty_inc', 'enable_qty_increments',
+        'is_decimal_divided', 'website_id', 'deferred_stock_update',
+        'use_config_deferred_stock_update', 'related_skus', 'related_position',
+        'crosssell_skus', 'crosssell_position', 'upsell_skus', 'upsell_position',
+        'additional_images', 'additional_image_labels', 'hide_from_product_page',
+        'custom_options', 'giftcard_type', 'giftcard_allow_open_amount',
+        'giftcard_open_amount_min', 'giftcard_open_amount_max', 'giftcard_amount',
+        'use_config_is_redeemable', 'giftcard_is_redeemable', 'use_config_lifetime',
+        'giftcard_lifetime', 'use_config_allow_message', 'giftcard_allow_message',
+        'use_config_email_template', 'giftcard_email_template', 'bundle_price_type',
+        'bundle_sku_type', 'bundle_price_view', 'bundle_weight_type', 'bundle_values',
+        'bundle_shipment_type', 'configurable_variations', 'configurable_variation_labels',
+        'downloadable_links', 'downloadable_samples', 'associated_skus'
+    ]
+
+new_df = pd.DataFrame(all_skus, columns=['sku'])
+
+new_df['store_view_code'] = ''
+new_df['attribute_set_code'] = 'Default'
+new_df['product_type'] = new_df['sku'].apply(determine_product_type)
+new_df['categories'] = '<Replace This>'
+new_df['product_websites'] = '<Replace_This>'
+
+sku_to_product_name_dict = dict(zip(original_df['ProductSKU'], original_df['ProductName']))
+new_df['name'] = new_df['sku'].map(sku_to_product_name_dict).fillna('')
+
+new_df['description'] = ''
+
+sku_to_default_description_dict = dict(zip(original_df['ProductSKU'], original_df['DefaultDescription']))
+new_df['short_description'] = new_df['sku'].map(sku_to_default_description_dict).fillna('')
+
+sku_to_weight_dict = dict(zip(original_df['ProductSKU'], original_df['Weight']))
+new_df['weight'] = new_df['sku'].map(sku_to_weight_dict)
+
+new_df['product_online'] = 1
+new_df['tax_class_name'] = 'Taxable Goods'
+new_df['visibility'] = new_df['sku'].apply(lambda x: 'Catalog, Search' if '-' not in x else 'Not Visible Individually')
+new_df['price'] = new_df['sku'].map(lambda x: sku_to_price_dict.get(x, 0))
+new_df['size'] = new_df['sku'].map(sku_to_size_dict).fillna('')
+
+sku_to_color_dict = dict(zip(original_df['ProductSKU'], original_df['RowProperty']))
+new_df['color'] = new_df['sku'].map(sku_to_color_dict).fillna('')
+
+new_df['special_price'] = ''
+new_df['special_price_from_date'] = ''
+new_df['special_price_to_date'] = ''
+
+new_df['url_key'] = new_df['sku'].apply(lambda x: safe_str_operations({'name': x}, 'name'))
+
+new_df['meta_title'] = ''
+new_df['meta_keywords'] = ''
+new_df['meta_description'] = ''
+new_df['base_image'] = ''
+new_df['base_image_label'] = ''
+new_df['small_image'] = ''
+new_df['small_image_label'] = ''
+new_df['thumbnail_image'] = ''
+new_df['thumbnail_image_label'] = ''
+new_df['swatch_image'] = ''
+new_df['swatch_image_label'] = ''
+new_df['created_at'] = ''
+new_df['updated_at'] = ''
+new_df['new_from_date'] = ''
+new_df['new_to_date'] = ''
+new_df['display_product_options_in'] = 'Block after Info Column'
+new_df['map_price'] = ''
+new_df['msrp_price'] = ''
+new_df['map_enabled'] = ''
+new_df['gift_message_available'] = 'No'
+new_df['custom_design'] = ''
+new_df['custom_design_from'] = ''
+new_df['custom_design_to'] = ''
+new_df['custom_layout_update'] = ''
+new_df['page_layout'] = ''
+new_df['product_options_container'] = ''
+new_df['msrp_display_actual_price_type'] = 'Use config'
+new_df['country_of_manufacture'] = ''
+new_df['additional_attributes'] = ''
+
+sku_to_quantity_dict = dict(zip(original_df['ProductSKU'], original_df['QuantityAvailable']))
+new_df['qty'] = new_df['sku'].map(lambda x: sku_to_quantity_dict.get(x, 0))
+
+new_df['out_of_stock_qty'] = new_df['sku'].map(
+dict(zip(original_df['ProductSKU'], original_df['QuantityAvailable']))
+      ).apply(lambda qty: qty if qty < 0 else 0).fillna(0)
+
+new_df['use_config_min_qty'] = '0'
+new_df['is_qty_decimal'] = '0'
+new_df['allow_backorders'] = '0'
+new_df['use_config_backorders'] = '0'
+new_df['min_cart_qty'] = '1'
+new_df['use_config_min_sale_qty'] = '0'
+new_df['max_cart_qty'] = '10'
+new_df['use_config_max_sale_qty'] = '0'
+new_df['is_in_stock'] = '1'
+new_df['notify_on_stock_below'] = '0'
+new_df['use_config_notify_stock_qty'] = '0'
+new_df['manage_stock'] = '1'
+new_df['use_config_manage_stock'] = '0'
+new_df['use_config_qty_increments'] = '0'
+new_df['qty_increments'] = '0'
+new_df['use_config_enable_qty_inc'] = '0'
+new_df['enable_qty_increments'] = '0'
+new_df['is_decimal_divided'] = '0'
+new_df['website_id'] = '0'
+new_df['deferred_stock_update'] = '0'
+new_df['use_config_deferred_stock_update'] = '1'
+new_df['related_skus'] = ''
+new_df['related_position'] = ''
+new_df['crosssell_skus'] = ''
+new_df['crosssell_position'] = ''
+new_df['upsell_skus'] = ''
+new_df['upsell_position'] = ''
+new_df['additional_images'] = ''
+new_df['additional_image_labels'] = ''
+new_df['hide_from_product_page'] = ''
+new_df['custom_options'] = ''
+new_df['giftcard_type'] = ''
+new_df['giftcard_allow_open_amount'] = ''
+new_df['giftcard_open_amount_min'] = ''
+new_df['giftcard_open_amount_max'] = ''
+new_df['giftcard_amount'] = ''
+new_df['use_config_is_redeemable'] = ''
+new_df['giftcard_is_redeemable'] = ''
+new_df['use_config_lifetime'] = ''
+new_df['giftcard_lifetime'] = ''
+new_df['use_config_allow_message'] = ''
+new_df['giftcard_allow_message'] = ''
+new_df['use_config_email_template'] = ''
+new_df['giftcard_email_template'] = ''
+new_df['bundle_price_type'] = ''
+new_df['bundle_sku_type'] = ''
+new_df['bundle_price_view'] = ''
+new_df['bundle_weight_type'] = ''
+new_df['bundle_values'] = ''
+new_df['bundle_shipment_type'] = ''
+
+new_df['configurable_variations'] = new_df['sku'].apply(lambda sku: get_configurable_variations(sku, original_df) if '-' not in sku else '')
+new_df['configurable_variation_labels'] = new_df['configurable_variations'].apply(lambda x: 'size=Size,color=Color' if x else '')
+
+new_df['downloadable_links'] = ''
+new_df['downloadable_samples'] = ''
+new_df['associated_skus'] = ''
+
+new_df.sort_values(by=['sku'], inplace=True)
+new_df['name'] = new_df['name'].replace('', np.nan).fillna(method='bfill')
+new_df['short_description'] = new_df['short_description'].replace('', np.nan).fillna(method='bfill')
+new_df['weight'] = new_df['weight'].replace('', np.nan).fillna(method='bfill')
+
+new_df.sort_values(by=['sku'], inplace=True)
+
+original_skus_set = set(original_df['ProductSKU'])
+
+new_df['is_in_original'] = new_df['sku'].apply(lambda x: x in original_skus_set)
+
+new_df['product_type'] = new_df.apply(lambda x: 'simple' if x['is_in_original'] else 'configurable', axis=1)
+
+new_df.drop('is_in_original', axis=1, inplace=True)
+
+new_df.loc[new_df['product_type'] == 'configurable', 'name'] = new_df['name'].str.split('-').str[0]
+new_df.loc[new_df['product_type'] == 'configurable', 'description'] = new_df['description'].str.split('-').str[0]
+
+new_df['name'] = new_df['name'].replace('', np.nan).fillna(method='bfill')
+
+new_df = new_df.copy()
+output_file = 'Transformed_Data.csv'
+new_df.to_csv(output_file, index=False)
+print(f"File saved as {output_file}")
+files.download(output_file)
