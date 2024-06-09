@@ -1,0 +1,61 @@
+!pip install git+https://github.com/stan-dev/pystan2.git@master   #This is a new version of pystan that successfully builds the wheels necessary for Fbprophet to run (by changing the originally automatic tools used to set it up)
+
+from prophet import Prophet
+import pandas as pd
+from google.colab import files
+
+uploaded = files.upload()
+
+df = pd.read_csv('Daily_In_Stock_Invoice_Totals_202308.csv')
+
+df.head()
+
+df.dtypes
+
+df ['Invoice Date'] = pd.to_datetime(df['Invoice Date'])
+df
+
+df.columns = [ 'ds' , 'y']
+df.head()
+
+m = Prophet(interval_width=0.95)
+
+training_run = m.fit(df)
+
+future = m.make_future_dataframe(periods=45, freq='D')
+
+future.tail()
+
+forecast = m.predict(future)
+
+plot1 = m.plot(forecast)
+
+plot2 = m.plot_components(forecast)
+
+forecast.tail()
+
+future_2 = m.make_future_dataframe(periods=7)
+fcst = m.predict(future)
+fig = m.plot(fcst)
+
+target_dates = ['']
+
+forecast_filtered = forecast.loc[forecast['ds'].isin(target_dates), ['ds', 'yhat_lower', 'yhat', 'yhat_upper']].rename(columns={'ds': 'Month', 'yhat': 'Predicted Median', 'yhat_lower': 'Low Projection', 'yhat_upper': 'High Projection'})
+
+print(forecast_filtered)
+
+forecast_filtered.to_csv('forecast_filtered.csv', index=False)
+
+import base64
+import pandas as pd
+from IPython.display import HTML
+
+forecast_filtered = forecast.loc[forecast['ds'].isin(target_dates), ['ds','yhat']].rename(columns={'ds': 'Date', 'yhat': 'Median Projection'})
+
+forecast_filtered.to_csv('forecast_filtered.csv', index=False)
+
+csv_file = open('forecast_filtered.csv', 'rb').read()
+encoded_csv = base64.b64encode(csv_file).decode('utf-8')
+
+html = f'<a href="data:text/csv;base64,{encoded_csv}" download="forecast_filtered.csv">Click here to download the CSV file</a>'
+display(HTML(html))
