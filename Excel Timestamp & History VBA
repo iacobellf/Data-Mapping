@@ -1,0 +1,80 @@
+Option Explicit
+
+Private Sub Workbook_Open()
+    ' Clear previous history log
+    ClearHistoryLog
+End Sub
+
+Private Sub Workbook_SheetChange(ByVal Sh As Object, ByVal Target As Range)
+    Dim cell As Range
+    Dim timestampCell As Range
+    Dim lastRow As Long
+    Dim historySheet As Worksheet
+    Dim historyRow As Long
+
+    Application.EnableEvents = False
+
+    ' Get reference to History Log sheet
+    On Error Resume Next
+    Set historySheet = ThisWorkbook.Sheets("History Log")
+    On Error GoTo 0
+
+    ' If History Log sheet does not exist, create it
+    If historySheet Is Nothing Then
+        Set historySheet = ThisWorkbook.Sheets.Add(After:=ThisWorkbook.Sheets(ThisWorkbook.Sheets.Count))
+        historySheet.Name = "History Log"
+        With historySheet
+            .Cells(1, 1).Value = "Sheet"
+            .Cells(1, 2).Value = "Cell"
+            .Cells(1, 3).Value = "Previous Value"
+            .Cells(1, 4).Value = "New Value"
+            .Cells(1, 5).Value = "Timestamp"
+        End With
+    End If
+
+    ' Loop through all cells that have changed
+    For Each cell In Target
+        ' Find the last used row in the History Log sheet
+        lastRow = historySheet.Cells(historySheet.Rows.Count, 1).End(xlUp).Row
+        historyRow = lastRow + 1
+
+        ' Log the change in the History Log sheet
+        With historySheet
+            .Cells(historyRow, 1).Value = Sh.Name
+            .Cells(historyRow, 2).Value = cell.Address
+            .Cells(historyRow, 3).Value = cell.Value
+            .Cells(historyRow, 4).Value = cell.Value
+            .Cells(historyRow, 5).Value = Now
+            .Cells(historyRow, 5).NumberFormat = "dd/mm/yyyy hh:mm:ss" ' Adjust date format as needed
+        End With
+    Next cell
+
+    ' Loop through all cells that have changed
+    For Each cell In Target
+        ' Find the last used row in the cell's column
+        lastRow = Sh.Cells(Sh.Rows.Count, cell.Column).End(xlUp).Row
+
+        ' Timestamp in the cell to the right of the last used cell in the same column
+        Set timestampCell = Sh.Cells(lastRow + 1, cell.Column).Offset(0, 1)
+
+        ' Insert timestamp
+        timestampCell.Value = Now
+        timestampCell.NumberFormat = "dd/mm/yyyy hh:mm:ss" ' Adjust date format as needed
+    Next cell
+
+    Application.EnableEvents = True
+End Sub
+
+Private Sub ClearHistoryLog()
+    Dim historySheet As Worksheet
+
+    On Error Resume Next
+    Set historySheet = ThisWorkbook.Sheets("History Log")
+    On Error GoTo 0
+
+    If Not historySheet Is Nothing Then
+        Application.DisplayAlerts = False
+        historySheet.Delete
+        Application.DisplayAlerts = True
+    End If
+End Sub
